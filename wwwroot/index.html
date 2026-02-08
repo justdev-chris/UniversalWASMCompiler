@@ -28,12 +28,15 @@
             terminal.scrollTop = terminal.scrollHeight;
         };
 
-        // This is the magic part that intercepts C++ cout/printf
+        // Emscripten output hooks
         var Module = {
             canvas: canvas,
             print: (text) => write(text, true),
             printErr: (text) => write("ERR: " + text),
-            onRuntimeInitialized: () => { write("WASM Runtime Started", true); canvas.style.display = "block"; }
+            onRuntimeInitialized: () => { 
+                write("WASM Runtime Started", true); 
+                canvas.style.display = "block"; 
+            }
         };
 
         document.getElementById('drop-zone').onclick = () => {
@@ -46,28 +49,52 @@
         async function processZip(file) {
             terminal.innerHTML = "";
             write(`Loading ${file.name}...`);
+
             const zip = await JSZip.loadAsync(file);
             const files = Object.keys(zip.files);
+
             const targetJS = files.find(f => f.endsWith('.js') && !f.includes('blazor'));
             const targetWasm = files.find(f => f.endsWith('.wasm'));
 
-            if (targetJS) {
+            if (targetJS && targetWasm) {
+                // Load JS and WASM bytes
                 const jsCode = await zip.files[targetJS].async("string");
-                const wasmBlob = await zip.files[targetWasm].async("blob");
-                const wasmUrl = URL.createObjectURL(wasmBlob);
-                
-                // Patch the JS so it finds the WASM blob
-                const patchedJS = jsCode.replace(new RegExp(targetWasm, 'g'), wasmUrl);
+                const wasmBytes = await zip.files[targetWasm].async("uint8array");
+
+                // Send WASM bytes to the service worker
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                        type: "wasm-bytes",
+                        bytes: wasmBytes
+                    });
+                } else {
+                    write("Service worker not ready yet — reload the page", false);
+                    return;
+                }
+
+                // Patch JS to load dynamic.wasm instead of the original filename
+                const patchedJS = jsCode.replace(new RegExp(targetWasm, 'g'), "dynamic.wasm");
+
+                // Inject patched JS
                 const script = document.createElement('script');
                 script.text = patchedJS;
                 document.head.appendChild(script);
+
+                write("WASM + JS Loaded", true);
+            } else {
+                write("No .js or .wasm found in ZIP", false);
             }
         }
     </script>
+
+    <!-- Service Worker Registration -->
     <script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
-}
-</script>
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("sw.js").then(() => {
+            console.log("Service worker registered");
+        });
+    }
+    </script>
+
 </body>
 </html>
