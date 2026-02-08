@@ -1,4 +1,4 @@
-# 🐾 UWC: Universal WASM Compiler
+# 🐾 Universal WASM Compiler
 
 **UWC** is a high-performance automated pipeline that compiles **C**, **C++**, and **C#** into WebAssembly (WASM) using GitHub Actions. It supports both "Standalone" binaries and "Full Output" (HTML/JS/WASM) for easy web integration.
 
