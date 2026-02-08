@@ -1,18 +1,21 @@
-self.addEventListener("fetch", event => {
-  const url = new URL(event.request.url);
+let wasmBytes = null;
 
-  if (url.pathname.endsWith(".wasm")) {
-    event.respondWith(
-      fetch(event.request).then(res => {
-        return new Response(res.body, {
-          status: res.status,
-          statusText: res.statusText,
-          headers: {
-            ...Object.fromEntries(res.headers.entries()),
-            "Content-Type": "application/wasm"
-          }
-        });
-      })
-    );
+// Receive WASM bytes from the page
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "wasm-bytes") {
+    wasmBytes = event.data.bytes;
+  }
+});
+
+// Intercept request for dynamic.wasm
+self.addEventListener("fetch", event => {
+  if (event.request.url.endsWith("dynamic.wasm")) {
+    if (wasmBytes) {
+      event.respondWith(
+        new Response(wasmBytes, {
+          headers: { "Content-Type": "application/wasm" }
+        })
+      );
+    }
   }
 });
