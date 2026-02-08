@@ -4,26 +4,36 @@
     <title>UWC: Universal WASM Compiler Runner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body { background: #0a0a0a; color: #00ff41; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; }
-        #drop-zone { border: 3px dashed #00ff41; width: 80%; margin: 20px; padding: 60px; text-align: center; cursor: pointer; background: #111; }
-        #terminal { background: #000; border: 1px solid #333; width: 85%; height: 400px; overflow-y: auto; padding: 15px; box-shadow: 0 0 20px rgba(0,255,65,0.2); }
-        .log-item { margin-bottom: 5px; border-bottom: 1px solid #111; padding-bottom: 2px; }
-        .success { color: #fff; background: #004400; padding: 0 5px; }
+        body { background: #0a0a0a; color: #00ff41; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
+        #drop-zone { border: 2px dashed #00ff41; width: 90%; margin: 10px; padding: 20px; text-align: center; cursor: pointer; background: #111; }
+        #canvas { background: #000; border: 2px solid #333; max-width: 90vw; max-height: 50vh; display: none; }
+        #terminal { background: #000; border: 1px solid #333; width: 90%; height: 200px; overflow-y: auto; padding: 10px; font-size: 12px; margin-top: 10px; }
+        .success { color: #fff; background: #004400; }
     </style>
 </head>
 <body>
-    <h1>UWC RUNNER v1.0</h1>
-    <div id="drop-zone">DRAG & DROP uwc_build.zip HERE</div>
+    <h1 style="font-size: 18px;">UWC RUNNER v1.1</h1>
+    <div id="drop-zone">DROP uwc_build.zip HERE</div>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
     <div id="terminal"></div>
 
     <script>
         const terminal = document.getElementById('terminal');
+        const canvas = document.getElementById('canvas');
+        
         const write = (text, isSuccess = false) => {
             const div = document.createElement('div');
-            div.className = 'log-item';
             div.innerHTML = `[${new Date().toLocaleTimeString()}] ${isSuccess ? '<span class="success">OK</span> ' : ''}${text}`;
             terminal.appendChild(div);
             terminal.scrollTop = terminal.scrollHeight;
+        };
+
+        // This is the magic part that intercepts C++ cout/printf
+        var Module = {
+            canvas: canvas,
+            print: (text) => write(text, true),
+            printErr: (text) => write("ERR: " + text),
+            onRuntimeInitialized: () => { write("WASM Runtime Started", true); canvas.style.display = "block"; }
         };
 
         document.getElementById('drop-zone').onclick = () => {
@@ -34,30 +44,23 @@
         };
 
         async function processZip(file) {
-            write(`Opening ${file.name}...`);
+            terminal.innerHTML = "";
+            write(`Loading ${file.name}...`);
             const zip = await JSZip.loadAsync(file);
             const files = Object.keys(zip.files);
             const targetJS = files.find(f => f.endsWith('.js') && !f.includes('blazor'));
             const targetWasm = files.find(f => f.endsWith('.wasm'));
 
-            if (!targetWasm) return write("ERROR: No WASM found.", false);
-            write(`Found binary: ${targetWasm}`, true);
-
             if (targetJS) {
-                write(`Executing with UWC Glue: ${targetJS}...`);
                 const jsCode = await zip.files[targetJS].async("string");
                 const wasmBlob = await zip.files[targetWasm].async("blob");
                 const wasmUrl = URL.createObjectURL(wasmBlob);
+                
+                // Patch the JS so it finds the WASM blob
                 const patchedJS = jsCode.replace(new RegExp(targetWasm, 'g'), wasmUrl);
                 const script = document.createElement('script');
                 script.text = patchedJS;
                 document.head.appendChild(script);
-            } else {
-                write("Executing Standalone UWC Binary...");
-                const wasmBuffer = await zip.files[targetWasm].async("arraybuffer");
-                const result = await WebAssembly.instantiate(wasmBuffer, { env: { emscripten_memcpy_big: () => {} } });
-                if (result.instance.exports.main) result.instance.exports.main();
-                write("Execution finished.");
             }
         }
     </script>
