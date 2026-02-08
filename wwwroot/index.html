@@ -13,7 +13,7 @@
 </head>
 <body>
     <h1 style="font-size: 18px;">UWC RUNNER v1.1</h1>
-    <div id="drop-zone">DROP uwc_build.zip HERE</div>
+    <div id="drop-zone">DROP a .zip with a .html/.js/.wasm OR your binary .wasm HERE</div>
     <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
     <div id="terminal"></div>
 
@@ -64,5 +64,10 @@
             }
         }
     </script>
+    <script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
 </body>
 </html>
