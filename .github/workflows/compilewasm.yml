@@ -1,58 +1,53 @@
-name: Trinity WASM Compiler
+name: Universal WASM Compiler (UWC)
 on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- 1. DETECTION PHASE ---
-      - name: Check which languages exist
-        id: check_dirs
+      - name: Detect Languages
+        id: check
         run: |
           echo "has_c=$(if [ -d src-c ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
           echo "has_cpp=$(if [ -d src-cpp ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
-          echo "has_cs=$(if [ -f src-csharp/App.csproj ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+          echo "has_cs=$(if [ -d src-csharp ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
 
-      # --- 2. SETUP PHASE (Only runs if needed) ---
-      - name: Setup Emscripten (C/C++)
-        if: steps.check_dirs.outputs.has_c == 'true' || steps.check_dirs.outputs.has_cpp == 'true'
+      - name: Setup Emscripten
+        if: steps.check.outputs.has_c == 'true' || steps.check.outputs.has_cpp == 'true'
         uses: mymindstorm/setup-emsdk@v14
 
-      - name: Setup .NET (C#)
-        if: steps.check_dirs.outputs.has_cs == 'true'
+      - name: Setup .NET
+        if: steps.check.outputs.has_cs == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # --- 3. COMPILATION PHASE ---
-      - name: Compile C
-        if: steps.check_dirs.outputs.has_c == 'true'
-        run: emcc src-c/main.c -o c_out.wasm -s STANDALONE_WASM
-
-      - name: Compile C++
-        if: steps.check_dirs.outputs.has_cpp == 'true'
-        run: emcc src-cpp/main.cpp -o cpp_out.wasm -s STANDALONE_WASM
-
-      - name: Compile C#
-        if: steps.check_dirs.outputs.has_cs == 'true'
+      - name: Compile
         run: |
-          dotnet workload install wasm-tools
-          dotnet publish src-csharp/App.csproj -c Release -r browser-wasm
+          mkdir -p dist
+          # C Build
+          if [ "${{ steps.check.outputs.has_c }}" == "true" ]; then
+            emcc src-c/main.c -o dist/c_index.html
+          fi
+          # C++ Build
+          if [ "${{ steps.check.outputs.has_cpp }}" == "true" ]; then
+            emcc src-cpp/main.cpp -o dist/cpp_index.html
+          fi
+          # C# Build
+          if [ "${{ steps.check.outputs.has_cs }}" == "true" ]; then
+            dotnet workload install wasm-tools
+            dotnet publish src-csharp/*.csproj -c Release -o dist/csharp/
+          fi
 
-      # --- 4. PACKAGING ---
-      - name: Zip Artifacts
+      - name: Archive Artifacts
         run: |
-          mkdir -p build_output
-          cp *.wasm build_output/ 2>/dev/null || true
-          # Find and copy C# output if it exists
-          find src-csharp/bin -name "*.wasm" -exec cp {} build_output/ \; 2>/dev/null || true
-          zip -r trinity_build.zip build_output/
-
+          cd dist && zip -r ../uwc_build.zip .
+          
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: wasm-package
-          path: trinity_build.zip
+          name: uwc-package
+          path: uwc_build.zip
