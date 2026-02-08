@@ -8,12 +8,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+
       - name: Detect Languages
         id: check
         run: |
-          echo "has_c=$(if [ -d src-c ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
-          echo "has_cpp=$(if [ -d src-cpp ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
-          echo "has_cs=$(if [ -d src-csharp ]; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+          echo "has_c=$(if ls src-c/*.c >/dev/null 2>&1; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+          echo "has_cpp=$(if ls src-cpp/*.cpp >/dev/null 2>&1; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
+          echo "has_cs=$(if ls src-csharp/*.csproj >/dev/null 2>&1; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_OUTPUT
 
       - name: Setup Emscripten
         if: steps.check.outputs.has_c == 'true' || steps.check.outputs.has_cpp == 'true'
